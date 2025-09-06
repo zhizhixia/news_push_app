@@ -1,0 +1,5 @@
+[
+  "tests/test_services.py::TestPushService::test_get_push_content",
+  "tests/test_services.py::TestUserModel::test_user_operations",
+  "tests/test_services.py::TestInteraction::test_handle_user_interaction"
+]
