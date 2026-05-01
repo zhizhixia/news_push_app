@@ -20,6 +20,7 @@ import logging
 import json
 from datetime import datetime
 from config.config import config
+from app.utils.singleton import SingletonMeta
 
 logger = logging.getLogger(__name__)
 
@@ -34,22 +35,12 @@ class UserIntent:
         self.entities = entities or {}
         self.timestamp = datetime.now()
 
-class LLMService:
+class LLMService(metaclass=SingletonMeta):
     """
     阿里百炼大语言模型服务类（单例模式）
     """
     
-    _instance = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(LLMService, cls).__new__(cls)
-        return cls._instance
-    
     def __init__(self):
-        if hasattr(self, '_initialized'):
-            return
-        
         self.model = config.DASHSCOPE_MODEL
         self.max_tokens = 2000
         self.temperature = 0.7
@@ -68,6 +59,12 @@ class LLMService:
                 r"切换到\s*(.+)",
                 r"定位\s*(.+)"
             ],
+            "query_forecast": [
+                r"明天天气",
+                r"未来\d+天",
+                r"天气预报",
+                r"预报"
+            ],
             "query_weather": [
                 r"天气",
                 r"气温",
@@ -83,12 +80,6 @@ class LLMService:
                 r"热点",
                 r"消息"
             ],
-            "query_forecast": [
-                r"明天天气",
-                r"未来\d+天",
-                r"天气预报",
-                r"预报"
-            ],
             "help": [
                 r"帮助",
                 r"使用说明",
@@ -96,8 +87,6 @@ class LLMService:
                 r"功能"
             ]
         }
-        
-        self._initialized = True
         logger.info("LLM服务初始化完成")
     
     def generate_response(self, prompt: str, context: str = None, user_id: str = None) -> str:
@@ -123,7 +112,8 @@ class LLMService:
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
                 top_p=self.top_p,
-                stop=["\n\n", "用户：", "系统："]
+                # 仅保留必要的停止词，避免正常输出被过度截断
+                stop=["用户："]
             )
             
             if response.status_code == 200:
@@ -136,7 +126,7 @@ class LLMService:
                 logger.info(f"成功生成AI响应，用户: {user_id}")
                 return generated_text
             else:
-                error_msg = f"API调用失败: {response.code} - {response.message}"
+                error_msg = f"API调用失败: {getattr(response, 'code', response.status_code)} - {getattr(response, 'message', '')}"
                 logger.error(error_msg)
                 return "抱歉，我现在无法处理您的请求，请稍后再试。"
                 
@@ -425,10 +415,3 @@ class LLMService:
 
 # 全局LLM服务实例
 llm_service = LLMService()
-
-# 向后兼容的函数
-def get_llm_response(prompt: str) -> str:
-    """
-    向后兼容的LLM响应函数
-    """
-    return llm_service.generate_response(prompt)

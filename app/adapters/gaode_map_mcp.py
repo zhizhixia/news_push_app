@@ -25,7 +25,8 @@ class GaodeMapMCP:
     
     def __init__(self):
         """初始化高德地图MCP客户端"""
-        self.base_url = "mcp://gaode-map"  # MCP服务协议地址
+        # Placeholder: replace with real API endpoint URL for production
+        self.base_url = "mcp://gaode-map"
         self.timeout = 10
         
         # 常用城市坐标映射（模拟数据）

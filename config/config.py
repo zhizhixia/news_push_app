@@ -57,13 +57,13 @@ class Config:
     @classmethod
     def validate_config(cls) -> bool:
         """验证配置完整性"""
-        required_fields = [
-            cls.DASHSCOPE_API_KEY,
-            cls.WECHAT_TOKEN,
-            cls.WECHAT_APPID,
-            cls.WECHAT_APPSECRET
-        ]
-        
+        # 开发模式下放宽校验，仅要求大模型配置可用
+        if cls.DEBUG:
+            if not cls.DASHSCOPE_API_KEY:
+                raise ValueError("缺少必要的环境变量: DASHSCOPE_API_KEY")
+            return True
+
+        # 生产模式严格校验
         missing_fields = []
         if not cls.DASHSCOPE_API_KEY:
             missing_fields.append("DASHSCOPE_API_KEY")
@@ -73,18 +73,14 @@ class Config:
             missing_fields.append("WECHAT_APPID")
         if not cls.WECHAT_APPSECRET:
             missing_fields.append("WECHAT_APPSECRET")
-        
+
         if missing_fields:
             raise ValueError(f"缺少必要的环境变量: {', '.join(missing_fields)}")
-        
+
         return True
 
 # 全局配置实例
 config = Config()
 
-# 向后兼容的变量导出
-DASHSCOPE_API_KEY = config.DASHSCOPE_API_KEY
-WECHAT_TOKEN = config.WECHAT_TOKEN
-WECHAT_APPID = config.WECHAT_APPID
-WECHAT_APPSECRET = config.WECHAT_APPSECRET
-DEFAULT_CITY = config.DEFAULT_CITY
+# No module-level attribute exports — use `from config.config import config`
+# Then access config.DASHSCOPE_API_KEY, config.DEFAULT_CITY, etc.

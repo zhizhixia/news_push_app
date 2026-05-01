@@ -23,26 +23,24 @@ from app.services.llm import llm_service
 from app.services.location import location_service
 from app.models.user import user_db
 from config.config import config
+from app.utils.singleton import SingletonMeta
 
 logger = logging.getLogger(__name__)
 
-class SchedulerService:
+class SchedulerService(metaclass=SingletonMeta):
     """
     任务调度服务类（单例模式）
     """
     
-    _instance = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(SchedulerService, cls).__new__(cls)
-        return cls._instance
-    
     def __init__(self):
-        if hasattr(self, '_initialized'):
-            return
-        
-        self.scheduler = AsyncIOScheduler(timezone=config.SCHEDULER_TIMEZONE)
+        # 时区配置：优先使用 pytz，如不可用则使用默认时区
+        tzinfo = None
+        try:
+            import pytz  # 可选依赖：若不存在则使用默认时区
+            tzinfo = pytz.timezone(config.SCHEDULER_TIMEZONE)
+        except Exception:
+            logger.warning(f"未安装或无法加载时区库，使用默认时区: {config.SCHEDULER_TIMEZONE}")
+        self.scheduler = AsyncIOScheduler(timezone=tzinfo) if tzinfo else AsyncIOScheduler()
         self.wechat_client = None
         self.push_service = push_service
         self.weather_service = weather_service
@@ -58,7 +56,6 @@ class SchedulerService:
             'last_error': None
         }
         
-        self._initialized = True
         logger.info("任务调度服务初始化完成")
     
     def initialize_wechat_client(self):
@@ -164,7 +161,7 @@ class SchedulerService:
         # 6. 推送统计报告任务（每周一次）
         self.scheduler.add_job(
             self.generate_weekly_report,
-            CronTrigger(day_of_week=1, hour=9, minute=0),  # 每周一早上9点
+            CronTrigger(day_of_week='mon', hour=9, minute=0),  # 每周一早上9点
             id='weekly_report',
             name='周报生成',
             replace_existing=True,
@@ -405,10 +402,3 @@ class SchedulerService:
 
 # 全局调度器服务实例
 scheduler_service = SchedulerService()
-
-# 向后兼容的函数
-def start_scheduler():
-    """
-    向后兼容的调度器启动函数
-    """
-    scheduler_service.start_scheduler()

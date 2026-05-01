@@ -1,202 +1,399 @@
-# 基于阿里百炼和微信服务号的MCP新闻推送应用
+# News Push App · 新闻天气推送服务
 
-## 1. 项目简介
+[English](#english) · [中文](#中文)
 
-本项目是一个基于MCP（Model-View-Controller-Presenter）架构的本地新闻、天气及国内外重要新闻实时推送应用。它通过集成阿里百炼大模型，实现了智能对话和信息处理，并通过微信服务号为用户提供个性化的新闻和天气信息推送服务。
+---
 
-## 2. 主要功能
+<div id="english">
 
-- **定时新闻推送**: 每天定时（默认早上8点）向所有关注用户推送最新的新闻摘要和天气预报。
-- **智能用户交互**: 用户可以通过微信服务号与阿里百炼大模型进行自然语言交互，获取更详细的信息或执行特定操作。
-- **个性化设置**: 用户可以随时通过向服务号发送指令（如“更改城市 [城市名]”）来更新自己的地理位置，从而接收到更精准的天气信息。
-- **微信集成**: 无缝集成微信服务号，支持消息的接收、处理和回复。
+## English
 
-## 3. 技术架构
+A FastAPI-based intelligent news & weather push service integrated with Alibaba DashScope LLM and WeChat Official Account.
 
-- **Web框架**: FastAPI
-- **大语言模型**: 阿里百炼（DashScope）
-- **消息调度**: APScheduler
-- **微信SDK**: wechatpy
-- **数据获取**: 通过第三方API（如极速数据）获取新闻和天气信息。
+### Features
 
-## 4. 环境配置与安装
+- **Scheduled Daily Push** — Pushes weather forecasts and curated news summaries to all subscribed users daily (default 08:00 AM, configurable).
+- **Intelligent User Interaction** — Natural language chat via WeChat Official Account, powered by DashScope LLM.
+- **Personalized Settings** — Users can update their city, preferences, and notification settings through WeChat commands.
+- **Intent Recognition** — Built-in regex + LLM hybrid intent detection for weather queries, news queries, and location updates.
+- **Service Health Monitoring** — Periodic health checks and weekly usage reports via APScheduler.
 
-### 4.1. 克隆项目
+### Tech Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Web Framework | FastAPI |
+| LLM | Alibaba DashScope (qwen-turbo by default) |
+| Task Scheduler | APScheduler (AsyncIOScheduler) |
+| WeChat SDK | wechatpy |
+| Data Validation | Pydantic |
+| Config | python-dotenv |
+
+### Project Structure
+
+```
+news_push_app/
+├── app/
+│   ├── adapters/          # External service adapters (weather, news, maps)
+│   │   ├── moji_weather_mcp.py
+│   │   ├── city_news_mcp.py
+│   │   └── gaode_map_mcp.py
+│   ├── api/               # HTTP route handlers
+│   │   └── wechat.py      # GET/POST /api/wechat
+│   ├── models/            # Pydantic data models
+│   │   └── user.py        # User, LocationInfo, UserPreferences
+│   ├── services/          # Core business logic (all singletons)
+│   │   ├── interaction.py # User message dispatch + response generation
+│   │   ├── llm.py         # DashScope LLM integration
+│   │   ├── weather.py     # Weather service
+│   │   ├── news.py        # News service
+│   │   ├── location.py    # Location/geocoding service
+│   │   ├── push_service.py # Push content assembly
+│   │   └── scheduler.py   # APScheduler job definitions
+│   ├── utils/             # Shared utilities
+│   │   └── singleton.py   # SingletonMeta metaclass
+│   └── main.py            # FastAPI app entry point
+├── config/
+│   └── config.py          # All configuration via .env
+├── tests/
+│   └── test_services.py   # 34 unit tests (unittest)
+├── Dockerfile
+├── requirements.txt
+├── .env.example
+└── DEPLOY.md
+```
+
+### Data Flow
+
+```
+WeChat User Message
+    │
+    ▼
+GET/POST /api/wechat        (app/api/wechat.py)
+    │
+    ▼
+handle_user_interaction()   (app/services/interaction.py)
+    │
+    ├── llm_service.analyze_user_intent()   → UserIntent
+    ├── weather_service                     → WeatherService
+    ├── news_service                        → NewsService
+    └── location_service                    → LocationService
+            │
+            ▼
+    Adapters (mock/stub data)               → Replace for production
+```
+
+### Quick Start
 
 ```bash
+# 1. Clone and set up
 git clone <your-repo-url>
 cd news_push_app
-```
+cp .env.example .env          # Edit with real API keys
 
-### 4.2. 安装依赖
-
-```bash
+# 2. Install dependencies
 pip install -r requirements.txt
-```
 
-### 4.3. 配置环境变量
-
-在项目根目录下创建一个 `.env` 文件，并根据 `config/config.py` 中的定义，填入以下配置信息：
-
-```
-DASHSCOPE_API_KEY="your_dashscope_api_key"
-WECHAT_TOKEN="your_wechat_token"
-WECHAT_APPID="your_wechat_appid"
-WECHAT_APPSECRET="your_wechat_appsecret"
-NEWS_API_KEY="your_news_api_key"
-WEATHER_API_KEY="your_weather_api_key"
-```
-
-**注意**: 
-- `WECHAT_TOKEN` 需要与您在微信公众平台后台设置的Token保持一致。
-- `WECHAT_APPID` 和 `WECHAT_APPSECRET` 是您服务号的唯一凭证。
-- `DASHSCOPE_API_KEY` 是您在阿里百炼平台上创建的应用的API Key。
-- `NEWS_API_KEY` 和 `WEATHER_API_KEY` 来自您选择的第三方数据提供商。
-
-## 5. 运行与部署
-
-### 5.1. 本地运行
-
-```bash
+# 3. Run
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-应用启动后，您需要使用内网穿透工具（如 ngrok）将本地的 `8000` 端口暴露到公网，以便微信服务器能够访问您的API。
-
-### 5.2. 微信服务号配置
-
-1. 登录微信公众平台，进入您的服务号后台。
-2. 在“开发” -> “基本配置”页面，找到“服务器配置”部分。
-3. 点击“修改配置”，并填写以下信息：
-   - **URL**: `http://<your-ngrok-domain>/api/wechat`
-   - **Token**: 与您在 `.env` 文件中配置的 `WECHAT_TOKEN` 一致。
-   - **EncodingAESKey**: 随机生成即可。
-   - **消息加解密方式**: 选择“明文模式”。
-4. 点击“提交”并“启用”服务器配置。
-
-## 6. 测试
-
-### 6.1. 单元测试
-
-您可以在 `tests` 目录下编写单元测试用例。例如，创建一个 `test_services.py` 文件：
-
-```python
-import unittest
-from app.services.push_service import get_push_content
-
-class TestServices(unittest.TestCase):
-    def test_get_push_content(self):
-        # 注意：此测试会真实调用API，请确保API Key有效
-        content = get_push_content("北京")
-        self.assertIn("北京今日天气", content)
-        self.assertIn("今日新闻摘要", content)
-
-if __name__ == '__main__':
-    unittest.main()
+For WeChat verification to work, expose port 8000 via ngrok or similar tunnel:
+```bash
+ngrok http 8000
 ```
 
-运行测试：
+Then configure your WeChat Official Account backend URL as `https://<your-ngrok-domain>/api/wechat`.
+
+### Environment Variables
+
+| Variable | Default | Required | Description |
+|----------|---------|----------|-------------|
+| `DASHSCOPE_API_KEY` | — | **Yes** | Alibaba DashScope API key |
+| `DASHSCOPE_MODEL` | `qwen-turbo` | No | DashScope model name |
+| `WECHAT_TOKEN` | — | Prod only | WeChat verification token |
+| `WECHAT_APPID` | — | Prod only | WeChat Official Account AppID |
+| `WECHAT_APPSECRET` | — | Prod only | WeChat Official Account AppSecret |
+| `DEFAULT_CITY` | `北京` | No | Default city for new users |
+| `PUSH_TIME_HOUR` | `8` | No | Daily push hour (0-23) |
+| `PUSH_TIME_MINUTE` | `0` | No | Daily push minute (0-59) |
+| `LOG_LEVEL` | `INFO` | No | Logging level |
+| `DEBUG` | `false` | No | Relaxes config validation when `true` |
+| `SCHEDULER_TIMEZONE` | `Asia/Shanghai` | No | Timezone for scheduled jobs |
+
+> **Note**: In `DEBUG=true` mode, only `DASHSCOPE_API_KEY` is required. Production mode (`DEBUG=false`) additionally requires all WeChat variables.
+
+### Running Tests
 
 ```bash
-python -m unittest discover tests
+# Preferred — unittest runner
+python -m unittest discover tests -v
+
+# Alternative — pytest
+pytest tests/ -v
 ```
 
-### 6.2. 微信交互测试
+> Tests call the adapter stubs directly. The LLM service test (`test_generate_response`) hits the real DashScope API unless mocked via `@patch`.
 
-- 关注您的微信服务号。
-- 发送“帮助”查看可用指令。
-- 发送“更改城市 上海”来更新您的位置。
-- 发送“今日新闻”或“天气预报”来获取实时信息。
-- 直接输入任何文本，与阿里百炼大模型进行对话。
+### Scheduled Tasks
 
-## 7. MCP架构说明
+Defined in `app/services/scheduler.py`:
 
-本应用基于MCP（Model-View-Controller-Presenter）架构设计，采用模块化和服务化的方式组织代码：
+| Job | Schedule | Description |
+|-----|----------|-------------|
+| Daily Push | `PUSH_TIME_HOUR:PUSH_TIME_MINUTE` | Sends weather + news to all users |
+| News Cache Refresh | Every 2 hours | Pre-loads hot news by category |
+| Weather Cache Refresh | Every 1 hour | Pre-loads weather for all user cities |
+| Health Check | Every 30 minutes | Checks all service health |
+| Cache Cleanup | Daily 02:00 | Clears expired cache entries |
+| Weekly Report | Monday 09:00 | Generates usage statistics |
 
-### 7.1. 架构组件
-
-- **适配器层（Adapters）**: 封装外部MCP服务的API调用
-  - `MojiWeatherMCP`: 墨迹天气服务适配器
-  - `CityNewsMCP`: 城市新闻服务适配器
-  - `GaodeMapMCP`: 高德地图服务适配器
-
-- **服务层（Services）**: 实现核心业务逻辑
-  - `LLMService`: 阿里百炼大模型服务
-  - `WeatherService`: 天气信息服务
-  - `NewsService`: 新闻信息服务
-  - `LocationService`: 位置管理服务
-  - `InteractionService`: 用户交互处理
-  - `PushService`: 推送内容生成
-  - `SchedulerService`: 任务调度管理
-
-### 7.2. 数据流架构
-
-```
-微信用户 → 微信API → 交互服务 → 意图识别（LLM） → 业务服务 → MCP适配器 → 外部API
-         ←         ←         ←                ←         ←          ←
-```
-
-## 8. 用户交互命令
-
-系统支持以下用户交互命令：
-
-### 8.1. 基础命令
-
-- `帮助` 或 `help`: 显示帮助信息
-- `更改城市 [城市名]`: 更新用户所在城市
-- `我的设置`: 查看当前用户设置
-- `今日天气`: 获取当前城市天气信息
-- `今日新闻`: 获取最新新闻摘要
-
-### 8.2. 高级交互
-
-- **自然语言对话**: 直接发送任何文本，与阿里百炼大模型进行智能对话
-- **智能意图识别**: 系统能理解用户的复杂需求并提供相应服务
-- **上下文理解**: 支持多轮对话和上下文记忆
-
-## 9. API文档
-
-### 9.1. 微信回调接口
-
-```
-POST /api/wechat
-```
-
-处理微信公众号消息推送。
-
-### 9.2. 健康检查接口
-
-```
-GET /health
-```
-
-返回系统健康状态和各MCP服务状态。
-
-## 10. 部署指南
-
-### 10.1. 生产环境部署
-
-推荐使用Docker进行部署：
+### Docker
 
 ```bash
-# 构建镜像
 docker build -t news-push-app .
-
-# 运行容器
-docker run -d --name news-push-app \
-  -p 8000:8000 \
-  --env-file .env \
-  news-push-app
+docker run -d --name news-push-app -p 8000:8000 --env-file .env news-push-app
 ```
 
-### 10.2. 常见问题
+Health check endpoint: `GET /health`
 
-**Q**: 微信服务器配置验证失败？
-**A**: 检查Token配置和URL可访问性，确保防火墙允许微信服务器访问。
+### API Endpoints
 
-**Q**: 第三方API调用失败？
-**A**: 检查API Key配置和网络连接，查看详细错误日志。
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/wechat` | WeChat server verification (signature check) |
+| `POST` | `/api/wechat` | Handle WeChat user messages |
+| `GET` | `/health` | System health + scheduler status |
+| `GET` | `/` | System info |
 
-## 11. 许可证
+### Architecture Notes
 
-本项目采用 MIT 许可证 - 详细信息请查看 [LICENSE](LICENSE) 文件。
+- **Singleton services**: All 6 service classes use `SingletonMeta` (defined in `app/utils/singleton.py`). Always import the module-level instance:
+  ```python
+  from app.services.weather import weather_service   # ✅ correct
+  ws = WeatherService()                                 # ❌ discouraged
+  ```
+
+- **Error handling contract**: Three-layer pattern:
+  - **Data layer** (adapters + service `get_*` methods): return `{"status": "success"/"error", ...}` dicts
+  - **Display layer** (service `format_*` methods + `interaction.py`): convert dicts to user-facing strings
+  - **Infrastructure layer** (scheduler): log and suppress exceptions
+
+- **Adapter stubs**: All three adapters (`MojiWeatherMCP`, `CityNewsMCP`, `GaodeMapMCP`) currently return hardcoded mock data. The `base_url = "mcp://..."` lines are placeholders. Replace adapter implementations when connecting to real APIs.
+
+- **In-memory storage**: User data is stored in a global `user_db` dict (`app/models/user.py`) — no database. All data is lost on restart. This is by design for the template. Swap in a database (PostgreSQL, Redis, etc.) for production.
+
+### User Commands
+
+| Command | Example | Description |
+|---------|---------|-------------|
+| `帮助` / `help` | — | Show help message |
+| `更改城市 <city>` | `更改城市 上海` | Update user city |
+| `天气` / `今日天气` | — | Get current weather |
+| `天气预报` / `明天天气` | — | Get weather forecast |
+| `新闻` / `今日新闻` | — | Get latest news |
+| Any text | — | Natural language chat with LLM |
+
+### License
+
+MIT — see [LICENSE](LICENSE).
+
+---
+
+</div>
+
+<div id="中文">
+
+## 中文
+
+基于 FastAPI + 阿里百炼 DashScope + 微信公众号的智能新闻天气推送服务。
+
+### 功能特性
+
+- **定时推送** — 每日定时（默认早 8:00）向所有关注用户推送天气预报与新闻摘要。
+- **智能交互** — 用户通过微信公众号发送消息，由 DashScope 大模型进行自然语言理解和回复。
+- **个性化设置** — 支持「更改城市」「我的设置」等指令，自动适配用户位置和偏好。
+- **意图识别** — 内置正则 + LLM 混合意图检测，准确区分天气查询、新闻查询、位置更新等意图。
+- **服务监控** — 定时健康检查 + 每周运营报告。
+
+### 技术栈
+
+| 组件 | 技术 |
+|------|------|
+| Web 框架 | FastAPI |
+| 大模型 | 阿里百炼 DashScope（默认 qwen-turbo） |
+| 任务调度 | APScheduler (AsyncIOScheduler) |
+| 微信 SDK | wechatpy |
+| 数据校验 | Pydantic |
+| 配置管理 | python-dotenv |
+
+### 项目结构
+
+```
+news_push_app/
+├── app/
+│   ├── adapters/          # 外部服务适配器（天气 / 新闻 / 地图）
+│   │   ├── moji_weather_mcp.py
+│   │   ├── city_news_mcp.py
+│   │   └── gaode_map_mcp.py
+│   ├── api/               # HTTP 路由
+│   │   └── wechat.py      # GET/POST /api/wechat
+│   ├── models/            # Pydantic 数据模型
+│   │   └── user.py        # User / LocationInfo / UserPreferences
+│   ├── services/          # 核心业务逻辑（全部单例）
+│   │   ├── interaction.py # 用户消息分发 + 响应生成
+│   │   ├── llm.py         # DashScope 大模型服务
+│   │   ├── weather.py     # 天气服务
+│   │   ├── news.py        # 新闻服务
+│   │   ├── location.py    # 位置 / 地理编码服务
+│   │   ├── push_service.py # 推送内容拼装
+│   │   └── scheduler.py   # APScheduler 定时任务
+│   ├── utils/             # 共享工具
+│   │   └── singleton.py   # SingletonMeta 元类
+│   └── main.py            # FastAPI 应用入口
+├── config/
+│   └── config.py          # 所有配置通过 .env 加载
+├── tests/
+│   └── test_services.py   # 34 条单元测试 (unittest)
+├── Dockerfile
+├── requirements.txt
+├── .env.example
+└── DEPLOY.md
+```
+
+### 数据流
+
+```
+微信用户消息
+    │
+    ▼
+GET/POST /api/wechat        (app/api/wechat.py)
+    │
+    ▼
+handle_user_interaction()   (app/services/interaction.py)
+    │
+    ├── llm_service.analyze_user_intent()   → UserIntent
+    ├── weather_service                     → WeatherService
+    ├── news_service                        → NewsService
+    └── location_service                    → LocationService
+            │
+            ▼
+    Adapters（当前为模拟数据）              → 生产环境需替换
+```
+
+### 快速开始
+
+```bash
+# 1. 克隆并配置
+git clone <your-repo-url>
+cd news_push_app
+cp .env.example .env          # 编辑填入真实 API Key
+
+# 2. 安装依赖
+pip install -r requirements.txt
+
+# 3. 启动
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+微信验证需要公网 URL，可使用 ngrok 将本地 8000 端口暴露出去：
+```bash
+ngrok http 8000
+```
+
+然后在微信公众平台后台将服务器 URL 配置为 `https://<your-ngrok-domain>/api/wechat`。
+
+### 环境变量
+
+| 变量 | 默认值 | 必需 | 说明 |
+|------|--------|------|------|
+| `DASHSCOPE_API_KEY` | — | **是** | 阿里百炼 API Key |
+| `DASHSCOPE_MODEL` | `qwen-turbo` | 否 | 大模型名称 |
+| `WECHAT_TOKEN` | — | 生产环境 | 微信 Token |
+| `WECHAT_APPID` | — | 生产环境 | 微信公众号 AppID |
+| `WECHAT_APPSECRET` | — | 生产环境 | 微信公众号 AppSecret |
+| `DEFAULT_CITY` | `北京` | 否 | 新用户默认城市 |
+| `PUSH_TIME_HOUR` | `8` | 否 | 每日推送小时 (0-23) |
+| `PUSH_TIME_MINUTE` | `0` | 否 | 每日推送分钟 (0-59) |
+| `LOG_LEVEL` | `INFO` | 否 | 日志级别 |
+| `DEBUG` | `false` | 否 | `true` 时放宽配置校验 |
+| `SCHEDULER_TIMEZONE` | `Asia/Shanghai` | 否 | 定时任务时区 |
+
+> **注意**: `DEBUG=true` 模式下仅校验 `DASHSCOPE_API_KEY`；生产模式 (`DEBUG=false`) 还需微信全套配置。
+
+### 运行测试
+
+```bash
+# 推荐方式 — unittest
+python -m unittest discover tests -v
+
+# 备选 — pytest
+pytest tests/ -v
+```
+
+> 测试直接调用适配器模拟数据，不需要 mock。LLM 服务测试 (`test_generate_response`) 会请求真实 DashScope API，除非加 `@patch` 装饰器。
+
+### 定时任务
+
+定义于 `app/services/scheduler.py`：
+
+| 任务 | 周期 | 说明 |
+|------|------|------|
+| 每日推送 | `PUSH_TIME_HOUR:PUSH_TIME_MINUTE` | 向全体用户推送天气+新闻 |
+| 新闻缓存刷新 | 每 2 小时 | 按类别预加载热门新闻 |
+| 天气缓存刷新 | 每 1 小时 | 按用户城市预加载天气 |
+| 健康检查 | 每 30 分钟 | 检查各服务可用性 |
+| 缓存清理 | 每日 02:00 | 清理过期缓存 |
+| 每周报告 | 周一 09:00 | 生成使用统计 |
+
+### Docker 部署
+
+```bash
+docker build -t news-push-app .
+docker run -d --name news-push-app -p 8000:8000 --env-file .env news-push-app
+```
+
+健康检查端点：`GET /health`
+
+### API 接口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/wechat` | 微信服务器验证（签名校验） |
+| `POST` | `/api/wechat` | 处理微信用户消息 |
+| `GET` | `/health` | 系统健康状态 + 调度器状态 |
+| `GET` | `/` | 系统信息 |
+
+### 架构说明
+
+- **单例服务**: 6 个 Service 类全部使用 `SingletonMeta` 元类（定义在 `app/utils/singleton.py`），统一通过模块级实例导入：
+  ```python
+  from app.services.weather import weather_service   # ✅ 正确
+  ws = WeatherService()                                 # ❌ 不推荐
+  ```
+
+- **错误处理契约**: 三层模式：
+  - **数据层**（适配器 + Service 的 `get_*` 方法）：返回 `{"status": "success"/"error", ...}` 字典
+  - **展示层**（Service 的 `format_*` 方法 + `interaction.py`）：将字典转为用户可见文本
+  - **基础设施层**（scheduler）：捕获异常并记录日志
+
+- **适配器均为模拟数据**: 当前三个适配器（`MojiWeatherMCP`、`CityNewsMCP`、`GaodeMapMCP`）返回硬编码的模拟数据。`base_url = "mcp://..."` 行仅为占位标识，接入真实 API 时需替换适配器实现。
+
+- **内存存储**: 用户数据存储在全局字典 `user_db`（`app/models/user.py`），无数据库持久化，重启即丢失。此为模板设计，生产环境需替换为数据库（PostgreSQL / Redis 等）。
+
+### 用户交互命令
+
+| 命令 | 示例 | 说明 |
+|------|------|------|
+| `帮助` / `help` | — | 显示帮助信息 |
+| `更改城市 <城市名>` | `更改城市 上海` | 更新用户城市 |
+| `天气` / `今日天气` | — | 获取当前天气 |
+| `天气预报` / `明天天气` | — | 获取多日预报 |
+| `新闻` / `今日新闻` | — | 获取新闻摘要 |
+| 任意文本 | — | 与大模型自由对话 |
+
+### 许可证
+
+MIT — 详见 [LICENSE](LICENSE)。
+
+</div>

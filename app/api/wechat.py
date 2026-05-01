@@ -58,7 +58,7 @@ async def wechat_message(request: Request):
             response_text = handle_user_interaction(msg.source, msg.content)
             reply = create_reply(response_text, msg)
         else:
-            reply = create_reply("对不起，目前只能处理文本消息。", msg)
+            reply = create_reply("对不起，目前只能处理文本消息", msg)
         
         return Response(content=reply.render(), media_type="application/xml")
         

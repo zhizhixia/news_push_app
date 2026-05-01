@@ -99,11 +99,10 @@ def health_check():
         # 检查调度器状态
         scheduler_status = scheduler_service.get_scheduler_status()
         
+        from datetime import datetime
         return {
             "status": "healthy",
-            "timestamp": logging.Formatter().formatTime(logging.LogRecord(
-                "", 0, "", 0, "", (), None
-            )),
+            "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             "scheduler": scheduler_status
         }
     except Exception as e:

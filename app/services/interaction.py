@@ -6,10 +6,35 @@
 - 响应生成
 - 上下文管理
 - 多服务集成
+
+# 错误处理约定
+
+本代码库采用分层错误处理模式：
+
+**数据层（适配器 + 服务 get/fetch 方法）** → 返回 `{"status": "success"/"error", ...}` 字典
+  - 成功: `{"status": "success", "data": {...}}`
+  - 失败: `{"status": "error", "message": "..."}`
+  - 示例: weather_service.get_current_weather(), news_service.get_hot_news()
+
+**展示层（服务 format/summary 方法 + 本模块）** → 返回用户可读的 `str`
+  - 负责将数据层字典转换为面向用户的文本消息
+  - 在数据层返回错误字典时生成友好的中文提示语
+  - 示例: weather_service.get_weather_summary(), generate_weather_response()
+
+**基础设施层（scheduler.py）** → 使用异常捕获（except Exception），直接记录日志
+
+**本模块是展示层与数据层的核心桥梁**:
+  - 调用数据层 get/fetch 方法获取 `{"status": ...}` 字典
+  - 检查 `result.get("status")` 判断成功/失败
+  - 成功时格式化为用户消息，失败时返回 `"抱歉，..."`
+  - 所有公开方法返回类型均为 `str`（面向微信用户的文本消息）
+
+**不要在数据层方法中返回裸字符串作为错误信息** — 这是展示层的职责。
 """
 
 from typing import Dict, Any, Optional
 import logging
+import re
 from app.services.llm import llm_service, UserIntent
 from app.services.weather import weather_service
 from app.services.news import news_service
@@ -29,7 +54,7 @@ class ResponseGenerator:
         self.news_service = news_service
         self.location_service = location_service
         self.llm_service = llm_service
-    
+
     def generate_weather_response(self, city: str, detailed: bool = False) -> str:
         """
         生成天气响应
@@ -56,8 +81,8 @@ class ResponseGenerator:
                 
         except Exception as e:
             logger.error(f"生成天气响应失败: {str(e)}")
-            return f"抱歉，无法获取{city}的天气信息。"
-    
+            return f"抱歉，无法获取{city}的天气信息"
+
     def generate_news_response(self, category: str = None, city: str = None) -> str:
         """
         生成新闻响应
@@ -76,20 +101,20 @@ class ResponseGenerator:
                     news_data = result.get("data", {}).get("news", [])
                     return self._format_news_list(news_data, f"{category}类别新闻")
                 else:
-                    return f"抱歉，无法获取{category}类别的新闻。"
+                    return f"抱歉，无法获取{category}类别的新闻"
             elif city:
                 result = self.news_service.get_hot_news(city, 5)
                 if result.get("status") == "success":
                     news_data = result.get("data", {}).get("news", [])
                     return self._format_news_list(news_data, f"{city}热点新闻")
                 else:
-                    return f"抱歉，无法获取{city}的新闻。"
+                    return f"抱歉，无法获取{city}的新闻"
             else:
                 return self.news_service.get_daily_news_summary()
                 
         except Exception as e:
             logger.error(f"生成新闻响应失败: {str(e)}")
-            return "抱歉，无法获取新闻信息。"
+            return "抱歉，无法获取新闻信息"
     
     def generate_location_update_response(self, user_id: str, location: str) -> str:
         """
@@ -182,9 +207,9 @@ HELP_MESSAGE = """
 4️⃣ 日常对话：
    • 直接与我对话，询问任何问题
 
-📢 每日早上8点会自动推送天气和新闻信息。
+📢 每日早上8点会自动推送天气和新闻信息
 
-输入 "帮助" 可以随时查看此帮助信息。
+输入 "帮助" 可以随时查看此帮助信息
 """
 
 def handle_user_interaction(openid: str, message: str) -> str:
@@ -213,30 +238,10 @@ def handle_user_interaction(openid: str, message: str) -> str:
         
         # 根据意图类型处理
         if intent_type == "update_location":
-            # 位置更新
-            entities = user_intent.entities
-            if 'extracted_text' in entities:
-                location = entities['extracted_text']
-            else:
-                # 从消息中提取位置信息
-                import re
-                patterns = [
-                    r"更改城市\s*(.+)",
-                    r"设置位置\s*(.+)",
-                    r"我在\s*(.+)",
-                    r"切换到\s*(.+)",
-                    r"定位\s*(.+)"
-                ]
-                
-                location = None
-                for pattern in patterns:
-                    match = re.search(pattern, message, re.IGNORECASE)
-                    if match:
-                        location = match.group(1).strip()
-                        break
-                
-                if not location:
-                    return "请按照格式：更改城市 城市名"
+            # 位置更新 - 信任LLM服务已提取的实体
+            location = user_intent.entities.get('extracted_text')
+            if not location:
+                return "请指定城市名称，例如：更改城市 深圳"
             
             return response_generator.generate_location_update_response(openid, location)
         
@@ -259,4 +264,4 @@ def handle_user_interaction(openid: str, message: str) -> str:
     
     except Exception as e:
         logger.error(f"处理用户交互失败: {str(e)}")
-        return "抱歉，我遇到了一些技术问题，请稍后再试。"
+        return "抱歉，我遇到了一些技术问题，请稍后再试"

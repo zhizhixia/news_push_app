@@ -9,31 +9,21 @@ import logging
 from datetime import datetime, timedelta
 from app.adapters.moji_weather_mcp import MojiWeatherMCP
 from config.config import config
+from app.utils.singleton import SingletonMeta
 
 logger = logging.getLogger(__name__)
 
-class WeatherService:
+class WeatherService(metaclass=SingletonMeta):
     """
     天气服务类（单例模式）
     """
     
-    _instance = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(WeatherService, cls).__new__(cls)
-        return cls._instance
-    
     def __init__(self):
-        if hasattr(self, '_initialized'):
-            return
-        
         self.mcp_client = MojiWeatherMCP()
         self.cache_duration = config.WEATHER_CACHE_DURATION
         self.weather_cache = {}
         self.forecast_cache = {}
         
-        self._initialized = True
         logger.info("天气服务初始化完成")
     
     def get_current_weather(self, city: str, use_cache: bool = True) -> Dict[str, Any]:
@@ -149,6 +139,44 @@ class WeatherService:
         except Exception as e:
             logger.error(f"格式化{city}推送天气失败: {str(e)}")
             return f"{city}天气信息获取失败。"
+
+    def get_detailed_forecast(self, city: str, days: int = 3) -> str:
+        """
+        获取并格式化指定城市的多日天气预报
+        
+        Args:
+            city: 城市名称
+            days: 预报天数，默认3天
+        
+        Returns:
+            格式化后的多日天气预报文本
+        """
+        try:
+            normalized_city = city
+            result = self.get_weather_forecast(normalized_city, days)
+            if result.get("status") != "success":
+                return f"抱歉，无法获取{normalized_city}的天气预报。"
+
+            forecast_list = result.get("data", {}).get("forecast", [])
+            if not forecast_list:
+                return f"暂未获取到{normalized_city}的天气预报数据。"
+
+            parts = []
+            parts.append(f"🌦️ {normalized_city}{days}天天气预报")
+            parts.append("")
+            for item in forecast_list[:days]:
+                date = item.get("date", "")
+                week = item.get("week", "")
+                weather = item.get("weather", "")
+                temp_low = item.get("temp_low", "")
+                temp_high = item.get("temp_high", "")
+                parts.append(f"• {date} {week}：{weather}，{temp_low}°C ~ {temp_high}°C")
+
+            return "\n".join(parts)
+
+        except Exception as e:
+            logger.error(f"获取{city}详细天气预报失败: {str(e)}")
+            return f"获取{city}天气预报时出现错误。"
     
     def _is_cache_valid(self, key: str, cache_dict: Dict, cache_hours: float = None) -> bool:
         """检查缓存是否有效"""
@@ -181,8 +209,3 @@ class WeatherService:
 
 # 全局天气服务实例
 weather_service = WeatherService()
-
-# 向后兼容的函数
-def get_weather(city: str) -> dict:
-    """向后兼容的天气查询函数"""
-    return weather_service.get_current_weather(city)

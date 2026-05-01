@@ -9,30 +9,20 @@ import logging
 from datetime import datetime, timedelta
 from app.adapters.city_news_mcp import CityNewsMCP
 from config.config import config
+from app.utils.singleton import SingletonMeta
 
 logger = logging.getLogger(__name__)
 
-class NewsService:
+class NewsService(metaclass=SingletonMeta):
     """
     新闻服务类（单例模式）
     """
     
-    _instance = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(NewsService, cls).__new__(cls)
-        return cls._instance
-    
     def __init__(self):
-        if hasattr(self, '_initialized'):
-            return
-        
         self.mcp_client = CityNewsMCP()
         self.cache_duration = config.NEWS_CACHE_DURATION
         self.news_cache = {}
         
-        self._initialized = True
         logger.info("新闻服务初始化完成")
     
     def get_hot_news(self, city: str = None, limit: int = 10, use_cache: bool = True) -> Dict[str, Any]:
@@ -210,8 +200,3 @@ class NewsService:
 
 # 全局新闻服务实例
 news_service = NewsService()
-
-# 向后兼容的函数
-def get_news(channel: str = "headlines", num: int = 10) -> dict:
-    """向后兼容的新闻查询函数"""
-    return news_service.get_news_by_category(channel, num)

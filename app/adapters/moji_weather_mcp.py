@@ -10,7 +10,6 @@
 """
 
 from typing import Dict, List, Optional, Any
-import requests
 import logging
 from datetime import datetime, timedelta
 
@@ -25,7 +24,8 @@ class MojiWeatherMCP:
     
     def __init__(self):
         """初始化墨迹天气MCP客户端"""
-        self.base_url = "mcp://moji-weather"  # MCP服务协议地址
+        # Placeholder: replace with real API endpoint URL for production
+        self.base_url = "mcp://moji-weather"
         self.timeout = 10
     
     def get_current_weather(self, city: str) -> Dict[str, Any]:

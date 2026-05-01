@@ -12,30 +12,20 @@
 from typing import Dict, List, Optional, Any, Tuple
 import logging
 from app.adapters.gaode_map_mcp import GaodeMapMCP
+from app.utils.singleton import SingletonMeta
 
 logger = logging.getLogger(__name__)
 
-class LocationService:
+class LocationService(metaclass=SingletonMeta):
     """
     位置服务类（单例模式）
     
     集成高德地图MCP服务，提供统一的地理位置服务接口
     """
     
-    _instance = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(LocationService, cls).__new__(cls)
-        return cls._instance
-    
     def __init__(self):
-        if hasattr(self, '_initialized'):
-            return
-        
         self.mcp_client = GaodeMapMCP()
         
-        self._initialized = True
         logger.info("位置服务初始化完成")
     
     def normalize_city_name(self, user_input: str) -> str:

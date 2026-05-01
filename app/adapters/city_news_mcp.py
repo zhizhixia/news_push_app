@@ -24,7 +24,8 @@ class CityNewsMCP:
     
     def __init__(self):
         """初始化城市新闻MCP客户端"""
-        self.base_url = "mcp://city-news"  # MCP服务协议地址
+        # Placeholder: replace with real API endpoint URL for production
+        self.base_url = "mcp://city-news"
         self.timeout = 10
         
         # 新闻类别映射

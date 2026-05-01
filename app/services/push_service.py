@@ -17,27 +17,18 @@ from app.services.news import news_service
 from app.services.llm import llm_service
 from app.services.location import location_service
 from config.config import config
+from app.utils.singleton import SingletonMeta
 
 logger = logging.getLogger(__name__)
 
-class PushService:
+class PushService(metaclass=SingletonMeta):
     """
     推送服务类（单例模式）
     
     负责生成和管理各种推送内容
     """
     
-    _instance = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(PushService, cls).__new__(cls)
-        return cls._instance
-    
     def __init__(self):
-        if hasattr(self, '_initialized'):
-            return
-        
         self.weather_service = weather_service
         self.news_service = news_service
         self.llm_service = llm_service
@@ -47,7 +38,6 @@ class PushService:
         self.push_cache = {}
         self.cache_duration = 3600  # 1小时缓存
         
-        self._initialized = True
         logger.info("推送服务初始化完成")
     
     def generate_daily_push_content(self, city: str = None) -> str:
@@ -245,7 +235,7 @@ class PushService:
         content_parts.append("")
         content_parts.append("💝 祝您今天工作顺利，心情愉快！")
         content_parts.append("")
-        content_parts.append("💬 回复"帮助"查看更多功能")
+        content_parts.append("💬 回复'帮助'查看更多功能")
         
         return "\n".join(content_parts)
     
@@ -259,7 +249,7 @@ class PushService:
             if 5 <= current_hour < 9:
                 greetings = [f"🌅 早安！{city}的朋友", f"🌞 美好的一天从{city}开始"]
             elif 9 <= current_hour < 12:
-                greetings = [f"☀️ 上午好！{city}"，f"🌤️ {city}的上午时光"]
+                greetings = [f"☀️ 上午好！{city}", f"🌤️ {city}的上午时光"]
             elif 12 <= current_hour < 14:
                 greetings = [f"🌞 中午好！{city}", f"☀️ {city}的午间问候"]
             elif 14 <= current_hour < 18:
@@ -360,11 +350,11 @@ class PushService:
             "="*20,
             "",
             "📱 由于网络原因，暂时无法获取最新的天气和新闻信息。",
-            "🔄 请稍后重试或发送"天气"、"新闻"获取最新信息。",
+            '🔄 请稍后重试或发送「天气」、「新闻」获取最新信息。',
             "",
             "💝 祝您今天愉快！",
             "",
-            "💬 回复"帮助"查看更多功能"
+            "💬 回复'帮助'查看更多功能"
         ]
         
         return "\n".join(fallback_content)
@@ -409,16 +399,3 @@ class PushService:
 
 # 全局推送服务实例
 push_service = PushService()
-
-# 向后兼容的函数
-def get_push_content(city: str = None) -> str:
-    """
-    向后兼容的推送内容获取函数
-    
-    Args:
-        city: 城市名称
-        
-    Returns:
-        推送内容
-    """
-    return push_service.generate_daily_push_content(city)
